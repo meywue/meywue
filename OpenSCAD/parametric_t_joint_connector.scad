@@ -10,7 +10,7 @@ lower_part_length = 10;
 upper_part_connector_is_round = false;
 upper_part_length = 3;
 upper_connector_part_radius = 1.2;
-upper_connector_part_dimension = [2,3];
+upper_connector_part_dimension = [1.9,6.1];
 
 add_flat_base = false;
 
@@ -42,8 +42,7 @@ module upper_part() {
     else {
         difference() {
             translate([0,0,upper_part_length/2 + wall_thickness/2 + wall_thickness + lower_connector_part_radius])
-            cube([upper_connector_part_dimension[0] + wall_thickness, upper_connector_part_dimension[1] + wall_thickness, upper_part_length + wall_thickness], center = true);
-            
+            cube([upper_connector_part_dimension[0] + 2*wall_thickness, upper_connector_part_dimension[1] + 2*wall_thickness, upper_part_length + wall_thickness], center = true);
             
             upper_connector_part();
         }
@@ -51,8 +50,13 @@ module upper_part() {
 }
 
 module joint_part() {
-    translate([0,0,-(lower_connector_part_radius + wall_thickness)])
-    cylinder(h = 2*lower_connector_part_radius + 2*wall_thickness, r = upper_connector_part_radius + wall_thickness);
+    if (upper_part_connector_is_round) {
+        translate([0,0,-(lower_connector_part_radius + wall_thickness)])
+        cylinder(h = 2*lower_connector_part_radius + 2*wall_thickness, r = upper_connector_part_radius + wall_thickness);
+    }
+    else {
+        cube([upper_connector_part_dimension[0] + 2*wall_thickness, upper_connector_part_dimension[1] + 2*wall_thickness, 2*lower_connector_part_radius + 2*wall_thickness], center = true);
+    }
 }
 
 module lower_part() {
