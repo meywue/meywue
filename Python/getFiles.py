@@ -3,6 +3,10 @@ from pathlib import Path
 from collections import defaultdict, Counter
 import argparse
 
+current_dir = Path(__file__).resolve().parent
+sys.path.insert(0, str(current_dir))
+# from getFiles import get_files
+
 def get_files(directory, recursive=True):
     # directory = Path(directory)
     pattern = "**/*" if recursive else "*"
@@ -12,11 +16,12 @@ def summarize_files(files, allowed_exts=None):
     ext_counter = Counter()
     filtered_files = []
 
+    # f is a Path object; absolute path
     for f in files:
-        ext = f.suffix.lower().lstrip('.')  # Remove dot and lowercase
-        ext_counter[ext] += 1
-        if allowed_exts is None or ext in allowed_exts:
-            filtered_files.append(f)
+      ext = f.suffix.lower().lstrip('.')  # Remove dot and lowercase
+      ext_counter[ext] += 1
+      if allowed_exts is None or ext in allowed_exts:
+        filtered_files.append(f)
 
     return ext_counter, filtered_files
 
