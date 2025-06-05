@@ -1,27 +1,45 @@
 import tkinter as tk
 from tkinter import messagebox
+from pathlib import Path
 
 def on_select(event):
-  selected = listbox.get(listbox.curselection())
-  messagebox.showinfo("You selected", selected)
+    widget = event.widget
+    try:
+        selected = widget.get(widget.curselection())
+        messagebox.showinfo("You selected", selected)
+    except tk.TclError:
+        pass
 
 def main():
-  # Create the main window
-  root = tk.Tk()
-  root.title("Simple List")
-  root.geometry("300x200")
+    directory = Path(r"Z:\digital")
 
-  # Create a listbox widget
-  listbox = tk.Listbox(root)
-  items = ["Apples", "Bananas", "Cherries", "Dates", "Elderberries"]
-  for item in items:
-    listbox.insert(tk.END, item)
+    root = tk.Tk()
+    root.title("Listbox with Scrollbar")
+    root.geometry("300x200")
 
-  listbox.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
-  listbox.bind("<<ListboxSelect>>", on_select)
+    # Frame to contain both listbox and scrollbar
+    frame = tk.Frame(root)
+    frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-  # Start the GUI event loop
-  root.mainloop()
+    # Scrollbar FIRST
+    scrollbar = tk.Scrollbar(frame)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    # Then the listbox
+    listbox = tk.Listbox(frame, yscrollcommand=scrollbar.set)
+    items = [str(d) for d in directory.iterdir() if d.is_dir()]
+    for item in items:
+        listbox.insert(tk.END, item)
+
+    listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+    # Link scrollbar to listbox
+    scrollbar.config(command=listbox.yview)
+
+    # Bind selection
+    listbox.bind("<<ListboxSelect>>", on_select)
+
+    root.mainloop()
 
 if __name__ == "__main__":
-  main()
+    main()
