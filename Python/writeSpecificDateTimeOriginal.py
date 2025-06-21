@@ -1,3 +1,10 @@
+# This script sets the EXIF DateTimeOriginal tag for all JPEG and DNG files in the current directory.
+# It uses the exiftool command-line utility to modify the EXIF data.
+# Requirements:
+# - exiftool must be installed and available in the system PATH.
+
+# TODO: Be able to pass date and time as arguments
+
 import os
 import re
 import subprocess
