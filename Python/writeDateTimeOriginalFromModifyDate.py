@@ -5,6 +5,7 @@ import subprocess
 # Matches '20171206' in filenames like 'IMG-20171206-WA0008.jpg'
 filename_date_regex = re.compile(r'(\d{4})(\d{2})(\d{2})')
 
+
 def get_file_modify_time(filepath):
     try:
         result = subprocess.run(
@@ -25,14 +26,17 @@ def get_file_modify_time(filepath):
         print(f"[ExifTool error] {e.stderr.strip()}")
         return None, None
 
+
 def extract_exif_modify_time(filename, filepath):
     file_date_str, file_time_str = get_file_modify_time(filepath)
     return f"{file_date_str} {file_time_str}"
 
+
 def write_exif_date(filepath, exif_date):
     try:
         subprocess.run(
-            ["exiftool", "-P", f"-DateTimeOriginal={exif_date}", "-overwrite_original", filepath],
+            ["exiftool", "-P",
+                f"-DateTimeOriginal={exif_date}", "-overwrite_original", filepath],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -40,7 +44,9 @@ def write_exif_date(filepath, exif_date):
         )
         print(f"[OK] Wrote EXIF date '{exif_date}' to '{filepath}'")
     except subprocess.CalledProcessError as e:
-        print(f"[Error] Failed to write EXIF to '{filepath}': {e.stderr.strip()}")
+        print(
+            f"[Error] Failed to write EXIF to '{filepath}': {e.stderr.strip()}")
+
 
 def process_directory(path="."):
     for filename in os.listdir(path):
@@ -55,6 +61,7 @@ def process_directory(path="."):
             pass
         else:
             print(f"[Skip] Could not extract valid date from '{filename}'")
+
 
 if __name__ == "__main__":
     process_directory(".")

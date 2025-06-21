@@ -16,14 +16,36 @@ ToDo:
 
 import argparse
 
+
 def parse_args():
-    parser = argparse.ArgumentParser(description="A template for a Python script.")
+    """
+    Parses command line arguments for the script.
+    Returns:
+        argparse.Namespace: The parsed arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="A template for a Python script.")
     parser.add_argument(
         '--option',
         type=str,
         help='An example option for the script.'
     )
     return parser.parse_args()
+
+
+def multiply_numbers(a, b):
+    """
+    Multiplies two numbers and returns the result.
+
+    Args:
+        a (int): The first number.
+        b (int): The second number.
+
+    Returns:
+        int: The product of a and b.
+    """
+    return a * b
+
 
 def main():
     args = parse_args()

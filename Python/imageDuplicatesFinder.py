@@ -10,6 +10,7 @@ Requirements:
 ToDo:
 [ ] Implement detailed comparison of EXIF dates for duplicates.
 [ ] Handle duplicates.
+[ ] get_image_hash compares the raw image content; A JPG and PNG with the same image yield the same hash. 
 """
 
 import hashlib
@@ -22,6 +23,11 @@ import argparse
 
 
 def parse_args():
+    """
+    Parses command line arguments for the script.
+    Returns:
+        argparse.Namespace: The parsed arguments.
+    """
     parser = argparse.ArgumentParser(
         description='Find duplicate images in a directory')
     parser.add_argument('--path',
@@ -30,6 +36,18 @@ def parse_args():
     parser.add_argument('--recursive',
                         action='store_true',
                         help='Search recursively in subdirectories')
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--dry-run', action='store_true',
+                       help='Only print the duplicate info')
+    group.add_argument(
+        "--copy",
+        nargs="?",
+        const="deduped_output",  # used if --copy is given but no path is provided
+        help="Copy unique files to output dir (default: deduped_output)"
+    )
+    group.add_argument('--delete', action='store_true',
+                       help='Delete unnecessary duplicate files')
 
     args = parser.parse_args()
 
@@ -42,8 +60,37 @@ def parse_args():
     return args
 
 
-def get_image_hash(filepath):
-    """Return SHA256 hash of file contents."""
+def get_image_hash(filepath: Path) -> str:
+    """
+    Creates the SHA256 hash of image content using hashlib and return it.
+
+    Uses Pillow to read the image and convert it to bytes.
+    This function normalizes the image format to RGB to ensure consistent hashing.
+
+    A JPG and PNG of the same image will be considered duplicates.
+
+    Args:
+        filepath (Path): The path to the file.
+
+    Returns:
+        str: The SHA256 hash of the image content.
+    """
+    with Image.open(filepath) as img:
+        img = img.convert("RGB")  # Normalize format
+        data = img.tobytes()
+        return hashlib.sha256(data).hexdigest()
+
+
+def get_file_hash(filepath: Path) -> str:
+    """
+    Creates the SHA256 hash of the file using hashlib and return it.
+
+    Args:
+        filepath (Path): The path to the file.
+
+    Returns:
+        str: The SHA256 hash of the file.
+    """
     hasher = hashlib.sha256()
     with open(filepath, 'rb') as f:
         hasher.update(f.read())
@@ -51,7 +98,16 @@ def get_image_hash(filepath):
 
 
 def get_exif_datetime(filepath):
-    """Return EXIF 'DateTimeOriginal' if available."""
+    """
+    Returns the EXIF 'DateTimeOriginal' if available.
+    If the EXIF data is not available, returns None.
+
+    Args:
+        filepath (Path): The path to the file.
+
+    Returns:
+        str: EXIF data of the file.
+    """
     try:
         image = Image.open(filepath)
         exif_data = image._getexif()
@@ -80,6 +136,7 @@ def find_duplicates(directory,
     for file in files:
         try:
             hash_value = get_image_hash(file)
+            # hash_value = get_file_hash(file)
             hash_map[hash_value].append(file)
 
             exif_date = get_exif_datetime(file)
