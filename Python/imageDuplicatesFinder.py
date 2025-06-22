@@ -10,16 +10,18 @@ Requirements:
 ToDo:
 [ ] Implement detailed comparison of EXIF dates for duplicates.
 [ ] Handle duplicates.
-[ ] get_image_hash compares the raw image content; A JPG and PNG with the same image yield the same hash. 
+[ ] get_image_hash compares the raw image content; A JPG and PNG with the same image yield the same hash.
+[ ] Pillow only works with JPG and PNG reliably. We need to use something like rawpy to compare RAW files.
 """
 
+import os
+import sys
 import hashlib
-from pathlib import Path
+import argparse
 from collections import defaultdict
+from pathlib import Path
 from PIL import Image
 from PIL.ExifTags import TAGS
-import os
-import argparse
 
 
 def parse_args():
@@ -29,35 +31,84 @@ def parse_args():
         argparse.Namespace: The parsed arguments.
     """
     parser = argparse.ArgumentParser(
-        description='Find duplicate images in a directory')
-    parser.add_argument('--path',
-                        type=Path,
-                        help='Path to the directory to search for duplicates')
-    parser.add_argument('--recursive',
-                        action='store_true',
-                        help='Search recursively in subdirectories')
+        description='Find duplicate images in a directory'
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        help="Verbose output"
+    )
+    parser.add_argument(
+        '--path',
+        type=Path,
+        help='Path to the directory to search for duplicates'
+    )
+    parser.add_argument(
+        '--recursive',
+        action='store_true',
+        help='Search recursively in subdirectories'
+    )
 
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--dry-run', action='store_true',
-                       help='Only print the duplicate info')
-    group.add_argument(
+    parser.add_argument(
         "--copy",
         nargs="?",
-        const="deduped_output",  # used if --copy is given but no path is provided
-        help="Copy unique files to output dir (default: deduped_output)"
+        const="_output",
+        metavar="copy_directory",
+        type=Path,
+        help="Copy unique files to output dir (default: _output)"
     )
-    group.add_argument('--delete', action='store_true',
-                       help='Delete unnecessary duplicate files')
+    parser.add_argument(
+        '--delete', 
+        nargs="?", 
+        const="ask",
+        choices=["ask", "Y"],
+        help='Delete unnecessary duplicate files'
+    )
 
     args = parser.parse_args()
 
+
+    # --path
     if args.path is None:
         args.path = Path.cwd()
         print(
-            f"[INFO] No --path given. Using current working directory: {args.path}"
+            f"🔵 No --path given. Using current working directory: {args.path}"
         )
 
+    if not args.path.exists() or not args.path.is_dir():
+        print(f"🔴 The path '{args.path}' is not a valid directory.")
+        return
+
+    if args.verbose:
+        print(f"🔎 Searching in (unresolved): {args.path}")
+    print(f"🔎 Searching in: {args.path.resolve()}")
+
+    # --recursive
+    print(f"🔁 Recursive search: {args.recursive}")
+
+    # --copy
+    if args.copy:
+        print(f"📂 Copying unique files to: {args.copy.resolve()}")
+
+    # --delete
+    if args.delete == "ask":
+        if not confirm_deletion():
+            print("🔴 Aborting.")
+            sys.exit(1)
+        else:
+            print("🗑️ Proceeding with deletion...")
+    elif args.delete == "Y":
+        print("🗑️ Proceeding with deletion (no prompt)...")
+
     return args
+
+
+def confirm_deletion():
+    try:
+        choice = input("⚠️  Are you sure you want to delete duplicate files? This step is irreversible. (y/N): ").strip().lower()
+        return choice == "y"
+    except KeyboardInterrupt:
+        print("\n❌ Cancelled.")
+        return False
 
 
 def get_image_hash(filepath: Path) -> str:
@@ -121,15 +172,25 @@ def get_exif_datetime(filepath):
         return None
 
 
-def find_duplicates(directory,
+def get_hashmap(directory: Path,
                     recursive=True,
                     extensions={'jpg', 'jpeg', 'png', 'cr2', 'arw', 'dng'}):
+    """
+    Returns a hashmap with all found files where the key is a SHA256 hash and the value is the file path.
+
+    Args:
+        directory (Path): The path to the directory where the search is started.
+        recursive (bool): Recursive search.
+        extensions (set): File extensions being used when searching for files.
+
+    Returns:
+        defaultdict: Hashmap of the files found.
+    """
     hash_map = defaultdict(list)
-    mismatched_dates = []
 
     pattern = "**/*" if recursive else "*"
     files = [
-        f for f in Path(directory).glob(pattern)
+        f for f in directory.glob(pattern)
         if f.is_file() and f.suffix[1:].lower() in extensions
     ]
 
@@ -139,20 +200,17 @@ def find_duplicates(directory,
             # hash_value = get_file_hash(file)
             hash_map[hash_value].append(file)
 
-            exif_date = get_exif_datetime(file)
-            mod_time = os.path.getmtime(file)
-            mod_date = str(Path(file).stat().st_mtime)
-
-            if exif_date:
-                # optionally compare formatted dates
-                pass  # Implement detailed comparison here
         except Exception as e:
             print(f"Error processing {file}: {e}")
 
+    return hash_map
+
+    
+def find_duplicates(hash_map: defaultdict):
     print("\n=== Duplicate Images ===")
     for hash_value, paths in hash_map.items():
         if len(paths) > 1:
-            print(f"\nHash: {hash_value}")
+            print(f"\nHash: {hash_value} ({len(paths)} entries)")
             for path in paths:
                 print(f"  - {path}")
 
@@ -162,15 +220,8 @@ def find_duplicates(directory,
 def main():
     args = parse_args()
 
-    if not args.path.exists() or not args.path.is_dir():
-        print(f"[ERROR] The path '{args.path}' is not a valid directory.")
-        return
-
-    print(f"Searching in (unresolved): {args.path}")
-    print(f"Searching in: {args.path.resolve()}")
-    print(f"Recursive: {args.recursive}")
-
-    find_duplicates(args.path, recursive=args.recursive)
+    hash_map = get_hashmap(args.path, recursive=args.recursive, extensions={'jpg', 'jpeg', 'png'})
+    find_duplicates(hash_map)
 
 
 if __name__ == "__main__":
