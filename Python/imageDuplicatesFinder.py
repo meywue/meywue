@@ -6,6 +6,7 @@ This script uses the SHA256 hash of the file contents to identify duplicates.
 Requirements:
 * Python 3.6 or higher
 * Pillow library for image processing (`pip install pillow`)
+* exiftools
 
 ToDo:
 [ ] Implement detailed comparison of EXIF dates for duplicates.
@@ -18,10 +19,14 @@ import os
 import sys
 import hashlib
 import argparse
+import subprocess
 from collections import defaultdict
 from pathlib import Path
 from PIL import Image
 from PIL.ExifTags import TAGS
+
+
+default_extensions = {'jpg', 'png'}
 
 
 def parse_args():
@@ -52,7 +57,7 @@ def parse_args():
         "--copy",
         nargs="?",
         const="_output",
-        metavar="copy_directory",
+        metavar="COPY_DIRECTORY",
         type=Path,
         help="Copy unique files to output dir (default: _output)"
     )
@@ -63,7 +68,12 @@ def parse_args():
         choices=["ask", "Y"],
         help='Delete unnecessary duplicate files'
     )
-
+    parser.add_argument(
+        "-ext", "--extensions",
+        nargs="+",
+        metavar="EXT",
+        help=f"Define file extensions to search for (default: {default_extensions})"
+    )
     args = parser.parse_args()
 
 
@@ -98,6 +108,10 @@ def parse_args():
             print("🗑️ Proceeding with deletion...")
     elif args.delete == "Y":
         print("🗑️ Proceeding with deletion (no prompt)...")
+
+    # --extensions
+    args.extensions = ({ext.lower() for ext in args.extensions}) if args.extensions else default_extensions
+    print(f"🗃️ File extensions: {', '.join(args.extensions)}")
 
     return args
 
@@ -148,7 +162,7 @@ def get_file_hash(filepath: Path) -> str:
     return hasher.hexdigest()
 
 
-def get_exif_datetime(filepath):
+def get_exif_datetime(filepath) -> str:
     """
     Returns the EXIF 'DateTimeOriginal' if available.
     If the EXIF data is not available, returns None.
@@ -160,21 +174,22 @@ def get_exif_datetime(filepath):
         str: EXIF data of the file.
     """
     try:
-        image = Image.open(filepath)
-        exif_data = image._getexif()
-        if not exif_data:
-            return None
-        for tag_id, value in exif_data.items():
-            tag = TAGS.get(tag_id, tag_id)
-            if tag == 'DateTimeOriginal':
-                return value
-    except Exception:
+        result = subprocess.run(
+            ["exiftool", "-s", "-s", "-s", "-DateTimeOriginal", str(filepath)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            text=True
+        )
+        output = result.stdout.strip()
+        return output if output else None
+    except subprocess.CalledProcessError:
         return None
 
 
-def get_hashmap(directory: Path,
+def get_file_hashmap(directory: Path,
                     recursive=True,
-                    extensions={'jpg', 'jpeg', 'png', 'cr2', 'arw', 'dng'}):
+                    extensions={'jpg', 'jpeg', 'png', 'cr2', 'arw', 'dng'}) -> defaultdict:
     """
     Returns a hashmap with all found files where the key is a SHA256 hash and the value is the file path.
 
@@ -206,7 +221,7 @@ def get_hashmap(directory: Path,
     return hash_map
 
     
-def find_duplicates(hash_map: defaultdict):
+def find_duplicates(hash_map: defaultdict) -> None:
     print("\n=== Duplicate Images ===")
     for hash_value, paths in hash_map.items():
         if len(paths) > 1:
@@ -217,10 +232,10 @@ def find_duplicates(hash_map: defaultdict):
     print()
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
-    hash_map = get_hashmap(args.path, recursive=args.recursive, extensions={'jpg', 'jpeg', 'png'})
+    hash_map = get_file_hashmap(args.path, recursive=args.recursive, extensions=args.extensions)
     find_duplicates(hash_map)
 
 
