@@ -36,7 +36,17 @@ def parse_args():
         argparse.Namespace: The parsed arguments.
     """
     parser = argparse.ArgumentParser(
-        description='Find duplicate images in a directory'
+    description="""
+Find duplicate images in a directory based on file content hash.
+
+This script uses the SHA256 hash of the file contents to identify duplicates.
+
+Requirements:
+  • Python 3.6 or higher
+  • Pillow library (`pip install pillow`)
+  • exiftool (must be in PATH)
+""",
+    formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -111,7 +121,7 @@ def parse_args():
 
     # --extensions
     args.extensions = ({ext.lower() for ext in args.extensions}) if args.extensions else default_extensions
-    print(f"🗃️ File extensions: {', '.join(args.extensions)}")
+    print(f"🗃️ File extensions: {', '.join(sorted(args.extensions))}")
 
     return args
 
