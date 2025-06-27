@@ -258,8 +258,10 @@ def find_duplicates(hash_map: defaultdict) -> None:
     for hash_value, paths in hash_map.items():
         if len(paths) > 1:
             print(f"\nHash: {hash_value} ({len(paths)} entries)")
-            for path in paths:
-                print(f"  - {path}")
+            winning_path = determine_winner(paths)
+            print(f"Winner: {winning_path}")
+            # for path in paths:
+            #     print(f"  - {path}")
 
     print()
 
@@ -275,6 +277,18 @@ def determine_winner(paths: list) -> Path:
     Returns:
         The Path of the winner file.
     """
+    print("winning")
+    current_winner = None
+    for k, path in enumerate(paths):
+        if k == 0:
+            current_winner = {
+                'path': path,
+                'date_time': get_exif_datetime(path)
+            }
+            print(current_winner)
+            continue
+
+    return current_winner['path']
 
 
 def main() -> None:
