@@ -36,7 +36,7 @@ def parse_args():
         argparse.Namespace: The parsed arguments.
     """
     parser = argparse.ArgumentParser(
-    description="""
+        description="""
 Find duplicate images in a directory based on file content hash.
 
 This script uses the SHA256 hash of the file contents to identify duplicates.
@@ -46,7 +46,7 @@ Requirements:
   • Pillow library (`pip install pillow`)
   • exiftool (must be in PATH)
 """,
-    formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -72,8 +72,8 @@ Requirements:
         help="Copy unique files to output dir (default: _output)"
     )
     parser.add_argument(
-        '--delete', 
-        nargs="?", 
+        '--delete',
+        nargs="?",
         const="ask",
         choices=["ask", "Y"],
         help='Delete unnecessary duplicate files'
@@ -81,11 +81,18 @@ Requirements:
     parser.add_argument(
         "-ext", "--extensions",
         nargs="+",
-        metavar="EXT",
+        metavar="EXTENSIONS",
         help=f"Define file extensions to search for (default: {default_extensions})"
     )
+    parser.add_argument(
+        "--rename",
+        nargs=1,
+        metavar="RENAME_EXPRESSION",
+        help="TODO: Rename files using a custom expression. "
+             "Use {hash} for the file hash, {datetime} for the EXIF DateTimeOriginal, "
+             "and {filename} for the original filename."
+    )
     args = parser.parse_args()
-
 
     # --path
     if args.path is None:
@@ -108,6 +115,19 @@ Requirements:
     # --copy
     if args.copy:
         print(f"📂 Copying unique files to: {args.copy.resolve()}")
+        if not args.copy.exists():
+            print(f"🔵 Creating output directory: {args.copy.resolve()}")
+            args.copy.mkdir(parents=True, exist_ok=True)
+        else:
+            print(f"🔵 Output directory already exists: {args.copy.resolve()}")
+    else:
+        if args.rename:
+            print("🔴 --copy is required when using --rename.")
+            sys.exit(1)
+
+    if args.rename:
+        args.rename = args.rename[0].strip()
+        print(f"🗃️ Renaming files. Renaming expression: {args.rename}")
 
     # --delete
     if args.delete == "ask":
@@ -120,7 +140,8 @@ Requirements:
         print("🗑️ Proceeding with deletion (no prompt)...")
 
     # --extensions
-    args.extensions = ({ext.lower() for ext in args.extensions}) if args.extensions else default_extensions
+    args.extensions = ({ext.lower() for ext in args.extensions}
+                       ) if args.extensions else default_extensions
     print(f"🗃️ File extensions: {', '.join(sorted(args.extensions))}")
 
     return args
@@ -128,7 +149,8 @@ Requirements:
 
 def confirm_deletion():
     try:
-        choice = input("⚠️  Are you sure you want to delete duplicate files? This step is irreversible. (y/N): ").strip().lower()
+        choice = input(
+            "⚠️  Are you sure you want to delete duplicate files? This step is irreversible. (y/N): ").strip().lower()
         return choice == "y"
     except KeyboardInterrupt:
         print("\n❌ Cancelled.")
@@ -198,8 +220,8 @@ def get_exif_datetime(filepath) -> str:
 
 
 def get_file_hashmap(directory: Path,
-                    recursive=True,
-                    extensions={'jpg', 'jpeg', 'png', 'cr2', 'arw', 'dng'}) -> defaultdict:
+                     recursive=True,
+                     extensions={'jpg', 'jpeg', 'png', 'cr2', 'arw', 'dng'}) -> defaultdict:
     """
     Returns a hashmap with all found files where the key is a SHA256 hash and the value is the file path.
 
@@ -230,7 +252,7 @@ def get_file_hashmap(directory: Path,
 
     return hash_map
 
-    
+
 def find_duplicates(hash_map: defaultdict) -> None:
     print("\n=== Duplicate Images ===")
     for hash_value, paths in hash_map.items():
@@ -242,10 +264,24 @@ def find_duplicates(hash_map: defaultdict) -> None:
     print()
 
 
+def determine_winner(paths: list) -> Path:
+    """
+    Determines the winner file from a list of files.
+    The winner is the file with the earliest EXIF date or the first file if no EXIF date is available.
+
+    Args:
+        paths (list): List of file paths.
+
+    Returns:
+        The Path of the winner file.
+    """
+
+
 def main() -> None:
     args = parse_args()
 
-    hash_map = get_file_hashmap(args.path, recursive=args.recursive, extensions=args.extensions)
+    hash_map = get_file_hashmap(
+        args.path, recursive=args.recursive, extensions=args.extensions)
     find_duplicates(hash_map)
 
 
