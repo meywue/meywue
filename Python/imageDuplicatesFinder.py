@@ -266,7 +266,7 @@ def find_duplicates(hash_map: defaultdict) -> None:
     print()
 
 
-def determine_winner(paths: list) -> Path:
+def determine_winner(paths: list) -> tuple[Path, list[Path]]:
     """
     Determines the winner file from a list of files.
     The winner is the file with the earliest EXIF date or the first file if no EXIF date is available.
@@ -278,6 +278,7 @@ def determine_winner(paths: list) -> Path:
         The Path of the winner file.
     """
     print("winning")
+    all_but_winner = []
     current_winner = None
     for k, path in enumerate(paths):
         if k == 0:
@@ -288,7 +289,7 @@ def determine_winner(paths: list) -> Path:
             print(current_winner)
             continue
 
-    return current_winner['path']
+    return current_winner['path'], all_but_winner
 
 
 def main() -> None:
