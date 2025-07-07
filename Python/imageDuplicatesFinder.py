@@ -24,6 +24,7 @@ from collections import defaultdict
 from pathlib import Path
 from PIL import Image
 from PIL.ExifTags import TAGS
+from datetime import datetime
 
 
 default_extensions = {'jpg', 'png'}
@@ -260,36 +261,93 @@ def find_duplicates(hash_map: defaultdict) -> None:
         if len(paths) > 1:
             print(f"\nHash: {hash_value} ({len(paths)} entries)")
             winning_path, all_but_winner = determine_winner(paths)
-            # print(f"Winner: {winning_path}")
+            print(f"Winner: {winning_path}")
+            print("Loosers:")
             for path in paths:
                 print(f"  - {path}")
 
     print()
 
 
-def determine_winner(paths: list) -> tuple[Path, list[Path]]:
-    """
-    Determines the winner file from a list of files.
-    The winner is the file with the earliest EXIF date or the first file if no EXIF date is available.
+def get_exif_tags(filepath: Path) -> dict:
+    import subprocess
+    import json
+    try:
+        result = subprocess.run(
+            ["exiftool", "-j", str(filepath)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            text=True
+        )
+        data = json.loads(result.stdout)
+        return data[0] if data else {}
+    except Exception:
+        return {}
 
-    Args:
-        paths (list): List of file paths.
 
-    Returns:
-        The Path of the winner file.
-    """
-    all_but_winner = []
-    current_winner = None
-    for k, path in enumerate(paths):
-        if k == 0:
-            current_winner = {
-                'path': path,
-                'date_time': get_exif_datetime(path)
-            }
-            print(current_winner)
+def parse_exif_date(tags: dict) -> datetime | None:
+    date_str = tags.get("DateTimeOriginal")
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def get_value_score(tags: dict) -> int:
+    """Score based on presence of valuable EXIF tags."""
+    score_tags = [
+        "FocalLength", "Aperture", "ShutterSpeed", "ISO", "CameraModelName", "LensModel"
+    ]
+    return sum(1 for tag in score_tags if tag in tags)
+
+
+def determine_winner(paths: list[Path]) -> tuple[Path, list[Path]]:
+    current_best = None
+    losers = []
+
+    for path in paths:
+        tags = get_exif_tags(path)
+        exif_date = parse_exif_date(tags)
+        modify_time = path.stat().st_mtime
+        score = get_value_score(tags)
+
+        candidate = {
+            "path": path,
+            "date": exif_date,
+            "mtime": modify_time,
+            "score": score,
+        }
+
+        if current_best is None:
+            current_best = candidate
             continue
 
-    return current_winner['path'], all_but_winner
+        # --- Compare logic:
+        better = False
+        # 1) Has EXIF date, and earlier
+        if candidate["date"] and not current_best["date"]:
+            better = True
+        elif candidate["date"] and current_best["date"]:
+            better = candidate["date"] < current_best["date"]
+
+        # 2) Fallback to file modification date
+        elif not candidate["date"] and candidate["mtime"] < current_best["mtime"]:
+            better = True
+
+        # 3) Tiebreaker: more useful tags
+        elif candidate["score"] > current_best["score"]:
+            better = True
+
+        if better:
+            losers.append(current_best["path"])
+            current_best = candidate
+        else:
+            losers.append(candidate["path"])
+
+    return current_best["path"], losers
 
 
 def main() -> None:
