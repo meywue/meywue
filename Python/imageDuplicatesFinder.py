@@ -98,51 +98,52 @@ Requirements:
     if args.path is None:
         args.path = Path.cwd()
         print(
-            f"🔵 No --path given. Using current working directory: {args.path}"
+            f"[INFO] No --path given. Using current working directory: {args.path}"
         )
 
     if not args.path.exists() or not args.path.is_dir():
-        print(f"🔴 The path '{args.path}' is not a valid directory.")
+        print(f"[ERROR] The path '{args.path}' is not a valid directory.")
         return
 
     if args.verbose:
-        print(f"🔎 Searching in (unresolved): {args.path}")
-    print(f"🔎 Searching in: {args.path.resolve()}")
+        print(f"Searching in (unresolved): {args.path}")
+    print(f"Searching in: {args.path.resolve()}")
 
     # --recursive
-    print(f"🔁 Recursive search: {args.recursive}")
+    print(f"Recursive search: {args.recursive}")
 
     # --copy
     if args.copy:
-        print(f"📂 Copying unique files to: {args.copy.resolve()}")
+        print(f"Copying unique files to: {args.copy.resolve()}")
         if not args.copy.exists():
-            print(f"🔵 Creating output directory: {args.copy.resolve()}")
+            print(f"[INFO] Creating output directory: {args.copy.resolve()}")
             args.copy.mkdir(parents=True, exist_ok=True)
         else:
-            print(f"🔵 Output directory already exists: {args.copy.resolve()}")
+            print(
+                f"[INFO] Output directory already exists: {args.copy.resolve()}")
     else:
         if args.rename:
-            print("🔴 --copy is required when using --rename.")
+            print("[ERROR] --copy is required when using --rename.")
             sys.exit(1)
 
     if args.rename:
         args.rename = args.rename[0].strip()
-        print(f"🗃️ Renaming files. Renaming expression: {args.rename}")
+        print(f"Renaming files. Renaming expression: {args.rename}")
 
     # --delete
     if args.delete == "ask":
         if not confirm_deletion():
-            print("🔴 Aborting.")
+            print("[ERROR] Aborting.")
             sys.exit(1)
         else:
-            print("🗑️ Proceeding with deletion...")
+            print("Proceeding with deletion...")
     elif args.delete == "Y":
-        print("🗑️ Proceeding with deletion (no prompt)...")
+        print("Proceeding with deletion (no prompt)...")
 
     # --extensions
     args.extensions = ({ext.lower() for ext in args.extensions}
                        ) if args.extensions else default_extensions
-    print(f"🗃️ File extensions: {', '.join(sorted(args.extensions))}")
+    print(f"File extensions: {', '.join(sorted(args.extensions))}")
 
     return args
 
@@ -150,10 +151,10 @@ Requirements:
 def confirm_deletion():
     try:
         choice = input(
-            "⚠️  Are you sure you want to delete duplicate files? This step is irreversible. (y/N): ").strip().lower()
+            "[WARN] Are you sure you want to delete duplicate files? This step is irreversible. (y/N): ").strip().lower()
         return choice == "y"
     except KeyboardInterrupt:
-        print("\n❌ Cancelled.")
+        print("\nCancelled.")
         return False
 
 
@@ -258,10 +259,10 @@ def find_duplicates(hash_map: defaultdict) -> None:
     for hash_value, paths in hash_map.items():
         if len(paths) > 1:
             print(f"\nHash: {hash_value} ({len(paths)} entries)")
-            winning_path = determine_winner(paths)
-            print(f"Winner: {winning_path}")
-            # for path in paths:
-            #     print(f"  - {path}")
+            winning_path, all_but_winner = determine_winner(paths)
+            # print(f"Winner: {winning_path}")
+            for path in paths:
+                print(f"  - {path}")
 
     print()
 
@@ -277,7 +278,6 @@ def determine_winner(paths: list) -> tuple[Path, list[Path]]:
     Returns:
         The Path of the winner file.
     """
-    print("winning")
     all_but_winner = []
     current_winner = None
     for k, path in enumerate(paths):
