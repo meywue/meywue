@@ -256,14 +256,14 @@ def get_file_hashmap(directory: Path,
 
 
 def find_duplicates(hash_map: defaultdict) -> None:
-    print("\n=== Duplicate Images ===")
+    print("\n=== find_duplicates ===")
     for hash_value, paths in hash_map.items():
         if len(paths) > 1:
             print(f"\nHash: {hash_value} ({len(paths)} entries)")
             winning_path, all_but_winner = determine_winner(paths)
             print(f"Winner: {winning_path}")
             print("Loosers:")
-            for path in paths:
+            for path in all_but_winner:
                 print(f"  - {path}")
 
     print()
