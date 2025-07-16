@@ -26,7 +26,7 @@ from PIL import Image
 from PIL.ExifTags import TAGS
 from datetime import datetime
 
-
+args = None
 default_extensions = {'jpg', 'png'}
 
 
@@ -115,7 +115,7 @@ Requirements:
 
     # --copy
     if args.copy:
-        print(f"Copying unique files to: {args.copy.resolve()}")
+        print(f"[INFO] Copying unique files to: {args.copy.resolve()}")
         if not args.copy.exists():
             print(f"[INFO] Creating output directory: {args.copy.resolve()}")
             args.copy.mkdir(parents=True, exist_ok=True)
@@ -347,10 +347,19 @@ def find_duplicates(hash_map: defaultdict) -> None:
             for path in all_but_winner:
                 print(f"  - {path}")
 
+            if args.copy:
+                print(f"Copying winner to: {args.copy.resolve()}")
+
+        elif len(paths) == 1:
+            if args.copy:
+                print(
+                    f"Single file: {paths[0]} (copying to {args.copy.resolve()})")
+
     print()
 
 
 def main() -> None:
+    global args
     args = parse_args()
 
     hash_map = get_file_hashmap(
