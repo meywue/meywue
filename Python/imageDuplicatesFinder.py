@@ -10,9 +10,8 @@ Requirements:
 
 ToDo:
 [ ] Implement detailed comparison of EXIF dates for duplicates.
-[ ] Handle duplicates.
-[ ] get_image_hash compares the raw image content; A JPG and PNG with the same image yield the same hash.
 [ ] Pillow only works with JPG and PNG reliably. We need to use something like rawpy to compare RAW files.
+[ ] Write resutls to a (json) file.
 """
 
 import os
@@ -20,6 +19,7 @@ import sys
 import hashlib
 import argparse
 import subprocess
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from PIL import Image
@@ -51,6 +51,8 @@ Requirements:
     )
     parser.add_argument(
         "-v", "--verbose",
+        action='store_true',
+        default=False,
         help="Verbose output"
     )
     parser.add_argument(
@@ -67,10 +69,10 @@ Requirements:
     parser.add_argument(
         "--copy",
         nargs="?",
-        const="_output",
+        const="-1", # -1 means default output directory; we default to "_output" later, this is just for doing the check
         metavar="COPY_DIRECTORY",
         type=Path,
-        help="Copy unique files to output dir (default: _output)"
+        help="Copy unique files to output dir (default: _output)\nWarning: If the output directory already exists, files will be copied into it, potentially overwriting existing files."
     )
     parser.add_argument(
         '--delete',
@@ -95,25 +97,40 @@ Requirements:
     )
     args = parser.parse_args()
 
+    print("args:", args)
+
     # --path
     if args.path is None:
         args.path = Path.cwd()
-        print(
-            f"[INFO] No --path given. Using current working directory: {args.path}"
-        )
+        print(f"[INFO] No --path given. Using current working directory: {args.path}")
+        print()
 
     if not args.path.exists() or not args.path.is_dir():
-        print(f"[ERROR] The path '{args.path}' is not a valid directory.")
+        print(f"[ERROR] The path '{args.path}' is not a valid directory. Aborting.")
+        sys.exit(1)
+        print()
         return
 
     if args.verbose:
-        print(f"Searching in (unresolved): {args.path}")
-    print(f"Searching in: {args.path.resolve()}")
+        print(f"[INFO] Searching in (unresolved): {args.path}")
+    print(f"[INFO] Searching in: {args.path.resolve()}")
 
     # --recursive
-    print(f"Recursive search: {args.recursive}")
+    print(f"[INFO] Recursive search: {args.recursive}")
+    print()
+
+    if args.rename:
+        if args.copy == None:
+            print(f"[ERROR] --copy argument must be given when renaming files. Aborting.")
+            sys.exit(1)
+        args.rename = args.rename[0].strip()
+        print(f"[INFO] Renaming files. Renaming expression: {args.rename}")
 
     # --copy
+    if args.copy == Path("-1"):
+        args.copy = args.path / "_output"
+        print(f"[INFO] No --copy argument given. Using default output directory: '_output'")
+    
     if args.copy:
         print(f"[INFO] Copying unique files to: {args.copy.resolve()}")
         if not args.copy.exists():
@@ -122,14 +139,7 @@ Requirements:
         else:
             print(
                 f"[INFO] Output directory already exists: {args.copy.resolve()}")
-    else:
-        if args.rename:
-            print("[ERROR] --copy is required when using --rename.")
-            sys.exit(1)
-
-    if args.rename:
-        args.rename = args.rename[0].strip()
-        print(f"Renaming files. Renaming expression: {args.rename}")
+        print()
 
     # --delete
     if args.delete == "ask":
@@ -137,14 +147,16 @@ Requirements:
             print("[ERROR] Aborting.")
             sys.exit(1)
         else:
-            print("Proceeding with deletion...")
+            print("[INFO] Proceeding with deletion...")
+        print()
     elif args.delete == "Y":
-        print("Proceeding with deletion (no prompt)...")
+        print("[INFO] Proceeding with deletion (no prompt)...")
+        print()
 
     # --extensions
     args.extensions = ({ext.lower() for ext in args.extensions}
                        ) if args.extensions else default_extensions
-    print(f"File extensions: {', '.join(sorted(args.extensions))}")
+    print(f"[INFO] File extensions: {', '.join(sorted(args.extensions))}")
 
     return args
 
@@ -338,22 +350,43 @@ def determine_winner(paths: list[Path]) -> tuple[Path, list[Path]]:
 
 def find_duplicates(hash_map: defaultdict) -> None:
     print("\n=== find_duplicates ===")
+    number_of_files = 0
+    number_of_copied_files = 0
     for hash_value, paths in hash_map.items():
+        number_of_files += len(paths)
         if len(paths) > 1:
-            print(f"\nHash: {hash_value} ({len(paths)} entries)")
+            print(f"\n[INFO] Hash: {hash_value} ({len(paths)} entries)")
             winning_path, all_but_winner = determine_winner(paths)
-            print(f"Winner: {winning_path}")
-            print("Loosers:")
-            for path in all_but_winner:
-                print(f"  - {path}")
+            if args.verbose:
+                print(f"[VERBOSE] Winner: {winning_path}")
+                print("[VERBOSE] Loosers:")
+                for path in all_but_winner:
+                    print(f"\t- {path}")
 
             if args.copy:
-                print(f"Copying winner to: {args.copy.resolve()}")
+                new_path = args.copy / winning_path.name
+                print(f"[INFO] Copying winner to: {args.copy.resolve()}")
+                try:
+                    shutil.copy2(winning_path, new_path)
+                    print(f"[INFO] Copied {winning_path} to {new_path}")
+                    number_of_copied_files += 1
+                except Exception as e:
+                    print(f"[WARNING] Failed to copy {winning_path}: {e}")
 
         elif len(paths) == 1:
             if args.copy:
-                print(
-                    f"Single file: {paths[0]} (copying to {args.copy.resolve()})")
+                new_path = args.copy / paths[0].name
+                print(f"\n[INFO] Copying single file to: {args.copy.resolve()})")
+                try:
+                    shutil.copy2(paths[0], new_path)
+                    print(f"[INFO] Copied {paths[0]} to {new_path}")
+                    number_of_copied_files += 1
+                except Exception as e:
+                    print(f"[WARNING] Failed to copy {paths[0]}: {e}")
+
+    print(f"\n[INFO] Found {len(hash_map)} unique hashes in {number_of_files} files.")
+    if number_of_copied_files > 0:
+        print(f"[INFO] Copied {number_of_copied_files} unique files to {args.copy.resolve()}")
 
     print()
 
@@ -362,8 +395,7 @@ def main() -> None:
     global args
     args = parse_args()
 
-    hash_map = get_file_hashmap(
-        args.path, recursive=args.recursive, extensions=args.extensions)
+    hash_map = get_file_hashmap(args.path, recursive=args.recursive, extensions=args.extensions)
     find_duplicates(hash_map)
 
 
