@@ -348,6 +348,21 @@ def determine_winner(paths: list[Path]) -> tuple[Path, list[Path]]:
     return current_best["path"], losers
 
 
+def delete_file(path: Path) -> None:
+    """
+    Deletes the file at the given path.
+    Handles exceptions for file not found and permission errors.
+    """
+    try:
+        path.unlink()
+        print(f"[INFO] Deleted: {path}")
+    except FileNotFoundError:
+        print(f"[WARNING] Failed to delete {path}. File not found.")
+    except PermissionError:
+        print(f"[WARNING] Failed to delete {path}. Permission denied.")
+    except Exception as e:
+        print(f"[WARNING] Failed to delete {path}: {e}")
+
 def find_duplicates(hash_map: defaultdict) -> None:
     print("\n=== find_duplicates ===")
     number_of_files = 0
@@ -370,8 +385,19 @@ def find_duplicates(hash_map: defaultdict) -> None:
                     shutil.copy2(winning_path, new_path)
                     print(f"[INFO] Copied {winning_path} to {new_path}")
                     number_of_copied_files += 1
+
+                    if args.delete:
+                        delete_file(winning_path)
+
+                except FileNotFoundError:
+                    print(f"[WARNING] Failed to copy {winning_path}. File not found.")
                 except Exception as e:
                     print(f"[WARNING] Failed to copy {winning_path}: {e}")
+
+            if args.delete:
+                for path in all_but_winner:
+                    delete_file(path)
+
 
         elif len(paths) == 1:
             if args.copy:
@@ -381,6 +407,12 @@ def find_duplicates(hash_map: defaultdict) -> None:
                     shutil.copy2(paths[0], new_path)
                     print(f"[INFO] Copied {paths[0]} to {new_path}")
                     number_of_copied_files += 1
+
+                    if args.delete:
+                        delete_file(paths[0])
+                        
+                except FileNotFoundError:
+                    print(f"[WARNING] Failed to copy {paths[0]}. File not found.")
                 except Exception as e:
                     print(f"[WARNING] Failed to copy {paths[0]}: {e}")
 
